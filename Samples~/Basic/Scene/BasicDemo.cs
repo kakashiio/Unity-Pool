@@ -9,7 +9,13 @@ namespace IO.Unity3D.Source.Pool.Sample
 {
     public class BasicDemo : MonoBehaviour
     {
+        public enum CreateType
+        {
+            Await,
+            Async
+        }
 
+        public CreateType CreationType;
         public GameObject Prefab;
         
         private DebugPool<A> _CSharpObjectPool;
@@ -24,31 +30,64 @@ namespace IO.Unity3D.Source.Pool.Sample
 
 
             int id = 0;
-            _GameObjectObjectPool = await DebugPool<GameObject>.Build(1, 2, async () =>
+            if (CreationType == CreateType.Await)
             {
-                var asyncInstantiateOperation = InstantiateAsync(Prefab);
+                _GameObjectObjectPool = await DebugPool<GameObject>.Build(1, 2, async () =>
+                {
+                    var asyncInstantiateOperation = InstantiateAsync(Prefab);
 
-                var tcs = new TaskCompletionSource<GameObject>();
+                    var tcs = new TaskCompletionSource<GameObject>();
 
-                StartCoroutine(_InstantiateAsync(asyncInstantiateOperation, tcs));
+                    StartCoroutine(_InstantiateAsync(asyncInstantiateOperation, tcs));
                     
-                var go = await tcs.Task;
-                go.name = id++.ToString();
-                go.transform.position = Random.insideUnitSphere;
-                return go;
-            }, a =>
+                    var go = await tcs.Task;
+                    go.name = id++.ToString();
+                    go.transform.position = Random.insideUnitSphere;
+                    return go;
+                }, a =>
+                {
+                    a.SetActive(true);
+                    Debug.Log("Borrow " + a);
+                }, a =>
+                {
+                    a.SetActive(false);
+                    Debug.Log("Return " + a);
+                }, a =>
+                {
+                    Debug.Log("Destroy " + a);
+                    GameObject.Destroy(a);
+                });
+            }
+            else if (CreationType == CreateType.Async)
             {
-                a.SetActive(true);
-                Debug.Log("Borrow " + a);
-            }, a =>
-            {
-                a.SetActive(false);
-                Debug.Log("Return " + a);
-            }, a =>
-            {
-                Debug.Log("Destroy " + a);
-                GameObject.Destroy(a);
-            });
+                DebugPool<GameObject>.BuildAsync(1, 2, async () =>
+                {
+                    var asyncInstantiateOperation = InstantiateAsync(Prefab);
+
+                    var tcs = new TaskCompletionSource<GameObject>();
+
+                    StartCoroutine(_InstantiateAsync(asyncInstantiateOperation, tcs));
+                    
+                    var go = await tcs.Task;
+                    go.name = id++.ToString();
+                    go.transform.position = Random.insideUnitSphere;
+                    return go;
+                }, a =>
+                {
+                    a.SetActive(true);
+                    Debug.Log("Borrow " + a);
+                }, a =>
+                {
+                    a.SetActive(false);
+                    Debug.Log("Return " + a);
+                }, a =>
+                {
+                    Debug.Log("Destroy " + a);
+                    GameObject.Destroy(a);
+                }, t => _GameObjectObjectPool = t);
+            }
+
+            
             Debug.Log(_GameObjectObjectPool);
         }
 
@@ -75,23 +114,25 @@ namespace IO.Unity3D.Source.Pool.Sample
                 GUILayout.Button(a.ToString());
             }
             GUILayout.EndHorizontal();
-            
-            
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("GameObject Pool");
-            foreach (var a in _GameObjectObjectPool.Cache)
+
+            if (_GameObjectObjectPool != null)
             {
-                GUILayout.Button(a.ToString());
-            }
-            GUILayout.EndHorizontal();
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("GameObject Pool");
+                foreach (var a in _GameObjectObjectPool.Cache)
+                {
+                    GUILayout.Button(a.ToString());
+                }
+                GUILayout.EndHorizontal();
             
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Using");
-            foreach (var a in _Stack2)
-            {
-                GUILayout.Button(a.ToString());
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Using");
+                foreach (var a in _Stack2)
+                {
+                    GUILayout.Button(a.ToString());
+                }
+                GUILayout.EndHorizontal();    
             }
-            GUILayout.EndHorizontal();
         }
 
         async void Update()
@@ -153,6 +194,16 @@ namespace IO.Unity3D.Source.Pool.Sample
             var pool = new DebugPool<T>(initSize, maxSize, creator, onBorrow, onReturn, onDestroy);
             await pool.Init();
             return pool;
+        }
+        
+        
+        public static void BuildAsync(int initSize, int maxSize, Func<Task<T>> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy, Action<DebugPool<T>> onPoolInited)
+        {
+            var poolTask = Build(initSize, maxSize, creator, onBorrow, onReturn, onDestroy);
+            poolTask.ContinueWith((t) =>
+            {
+                onPoolInited(t.Result);
+            });
         }
 
         protected DebugPool(int initSize, int maxSize, Func<Task<T>> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy) : base(initSize, maxSize, creator, onBorrow, onReturn, onDestroy)

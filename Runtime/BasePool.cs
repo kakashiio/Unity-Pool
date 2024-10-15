@@ -31,6 +31,15 @@ namespace IO.Unity3D.Source.Pool
             await pool.Init();
             return pool;
         }
+        
+        public static void BuildAsync(int initSize, int maxSize, Func<Task<T>> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy, Action<BasePool<T>> onPoolInited)
+        {
+            var poolTask = Build(initSize, maxSize, creator, onBorrow, onReturn, onDestroy);
+            poolTask.ContinueWith((t) =>
+            {
+                onPoolInited(t.Result);
+            });
+        }
 
         protected BasePool(int initSize, int maxSize, Func<Task<T>> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy)
         {
