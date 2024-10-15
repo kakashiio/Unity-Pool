@@ -1,0 +1,21 @@
+{
+    "name": "io.unity3d.source.pool",
+    "displayName": "Source Framework Pool",
+    "version": "1.0.0",
+    "unity": "2022.3",
+    "description": "Component in Source Framework - Pool for Unity",
+    "dependencies": {
+    },
+    "author": {
+        "name": "Kakashi",
+        "email": "john.cha@qq.com",
+        "url": "https://github.com/kakashiio/Unity-Pool"
+    },
+    "samples": [
+        {
+            "displayName": "Baisc usage about the pool",
+            "description": "Baisc usage about the pool",
+            "path": "Samples~/Basic"
+        }
+    ]
+}
