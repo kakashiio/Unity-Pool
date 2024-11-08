@@ -18,21 +18,21 @@ namespace IO.Unity3D.Source.Pool.Sample
         public CreateType CreationType;
         public GameObject Prefab;
         
-        private DebugPool<A> _CSharpObjectPool;
-        private DebugPool<GameObject> _GameObjectObjectPool;
+        private DebugTaskPool<A> _cSharpObjectTaskPool;
+        private DebugTaskPool<GameObject> _gameObjectObjectTaskPool;
 
         private Stack<A> _Stack1 = new Stack<A>();
         private Stack<GameObject> _Stack2 = new Stack<GameObject>();
         
         async void Start()
         {
-            _CSharpObjectPool = await DebugPool<A>.Build(1, 2, async () => new A(), a => Debug.Log("Borrow " + a), a => Debug.Log("Return " + a), a => Debug.Log("Destroy " + a));
+            _cSharpObjectTaskPool = await DebugTaskPool<A>.Build(1, 2, async () => new A(), a => Debug.Log("Borrow " + a), a => Debug.Log("Return " + a), a => Debug.Log("Destroy " + a));
 
 
             int id = 0;
             if (CreationType == CreateType.Await)
             {
-                _GameObjectObjectPool = await DebugPool<GameObject>.Build(1, 2, async () =>
+                _gameObjectObjectTaskPool = await DebugTaskPool<GameObject>.Build(1, 2, async () =>
                 {
                     var asyncInstantiateOperation = InstantiateAsync(Prefab);
 
@@ -60,7 +60,7 @@ namespace IO.Unity3D.Source.Pool.Sample
             }
             else if (CreationType == CreateType.Async)
             {
-                DebugPool<GameObject>.BuildAsync(1, 2, async () =>
+                DebugTaskPool<GameObject>.BuildAsync(1, 2, async () =>
                 {
                     var asyncInstantiateOperation = InstantiateAsync(Prefab);
 
@@ -84,11 +84,11 @@ namespace IO.Unity3D.Source.Pool.Sample
                 {
                     Debug.Log("Destroy " + a);
                     GameObject.Destroy(a);
-                }, t => _GameObjectObjectPool = t);
+                }, t => _gameObjectObjectTaskPool = t);
             }
 
             
-            Debug.Log(_GameObjectObjectPool);
+            Debug.Log(_gameObjectObjectTaskPool);
         }
 
         private IEnumerator _InstantiateAsync(AsyncInstantiateOperation<GameObject> asyncInstantiateOperation, TaskCompletionSource<GameObject> tcs)
@@ -101,7 +101,7 @@ namespace IO.Unity3D.Source.Pool.Sample
         {
             GUILayout.BeginHorizontal();
             GUILayout.Label("Pool");
-            foreach (var a in _CSharpObjectPool.Cache)
+            foreach (var a in _cSharpObjectTaskPool.Cache)
             {
                 GUILayout.Button(a.ToString());
             }
@@ -115,11 +115,11 @@ namespace IO.Unity3D.Source.Pool.Sample
             }
             GUILayout.EndHorizontal();
 
-            if (_GameObjectObjectPool != null)
+            if (_gameObjectObjectTaskPool != null)
             {
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("GameObject Pool");
-                foreach (var a in _GameObjectObjectPool.Cache)
+                foreach (var a in _gameObjectObjectTaskPool.Cache)
                 {
                     GUILayout.Button(a.ToString());
                 }
@@ -139,7 +139,7 @@ namespace IO.Unity3D.Source.Pool.Sample
         {
             if (Input.GetKeyUp(KeyCode.A))
             {
-                var a = await _CSharpObjectPool.Borrow();
+                var a = await _cSharpObjectTaskPool.Borrow();
                 if (a != null)
                 {
                     _Stack1.Push(a);    
@@ -149,18 +149,18 @@ namespace IO.Unity3D.Source.Pool.Sample
             {
                 if (_Stack1.TryPop(out A a))
                 {
-                    _CSharpObjectPool.Return(a);
+                    _cSharpObjectTaskPool.Return(a);
                 }
             }
             if (Input.GetKeyUp(KeyCode.D))
             {
                 _Stack1.Clear();
-                _CSharpObjectPool.Destroy();
+                _cSharpObjectTaskPool.Destroy();
             }
             
             if (Input.GetKeyUp(KeyCode.Q))
             {
-                var a = await _GameObjectObjectPool.Borrow();
+                var a = await _gameObjectObjectTaskPool.Borrow();
                 if (a != null)
                 {
                     _Stack2.Push(a);    
@@ -170,7 +170,7 @@ namespace IO.Unity3D.Source.Pool.Sample
             {
                 if (_Stack2.TryPop(out GameObject a))
                 {
-                    _GameObjectObjectPool.Return(a);
+                    _gameObjectObjectTaskPool.Return(a);
                 }
             }
             if (Input.GetKeyUp(KeyCode.E))
@@ -180,24 +180,24 @@ namespace IO.Unity3D.Source.Pool.Sample
                     GameObject.Destroy(go);
                 }
                 _Stack2.Clear();
-                _GameObjectObjectPool.Destroy();
+                _gameObjectObjectTaskPool.Destroy();
             }
         }
     }
 
-    class DebugPool<T> : BasePool<T>
+    class DebugTaskPool<T> : BaseTaskPool<T>
     {
         public IEnumerable<T> Cache => _Cache;
         
-        public static async Task<DebugPool<T>> Build(int initSize, int maxSize, Func<Task<T>> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy)
+        public static async Task<DebugTaskPool<T>> Build(int initSize, int maxSize, Func<Task<T>> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy)
         {
-            var pool = new DebugPool<T>(initSize, maxSize, creator, onBorrow, onReturn, onDestroy);
+            var pool = new DebugTaskPool<T>(initSize, maxSize, creator, onBorrow, onReturn, onDestroy);
             await pool.Init();
             return pool;
         }
         
         
-        public static void BuildAsync(int initSize, int maxSize, Func<Task<T>> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy, Action<DebugPool<T>> onPoolInited)
+        public static void BuildAsync(int initSize, int maxSize, Func<Task<T>> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy, Action<DebugTaskPool<T>> onPoolInited)
         {
             var poolTask = Build(initSize, maxSize, creator, onBorrow, onReturn, onDestroy);
             poolTask.ContinueWith((t) =>
@@ -206,7 +206,7 @@ namespace IO.Unity3D.Source.Pool.Sample
             });
         }
 
-        protected DebugPool(int initSize, int maxSize, Func<Task<T>> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy) : base(initSize, maxSize, creator, onBorrow, onReturn, onDestroy)
+        protected DebugTaskPool(int initSize, int maxSize, Func<Task<T>> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy) : base(initSize, maxSize, creator, onBorrow, onReturn, onDestroy)
         {
         }
     }

@@ -11,32 +11,30 @@ namespace IO.Unity3D.Source.Pool
     // @Email: john.cha@qq.com
     // @Date: 2024-10-15 22:17
     //******************************************
-    public class BasePool<T> : IPool<T>
+    public class AsyncPool<T> : IAsyncPool<T>
     {
-        protected Stack<T> _Cache = new Stack<T>();
+        protected Stack<T> _Cache = new ();
 
         private readonly int _InitSize;
         private readonly int _MaxSize;
-        private readonly Func<T> _Creator;
+        private readonly Action<Action<T>> _Creator;
         private readonly Action<T> _OnReturn;
         private readonly Action<T> _OnDestroy;
-        private readonly Action<T> _OnBorrow;
 
         private bool _Destroyed;
         
-        public static BasePool<T> Build(int initSize, int maxSize, Func<T> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy)
+        public static AsyncPool<T> Build(int initSize, int maxSize, Action<Action<T>> creator, Action<T> onReturn, Action<T> onDestroy)
         {
-            var pool = new BasePool<T>(initSize, maxSize, creator, onBorrow, onReturn, onDestroy);
+            var pool = new AsyncPool<T>(initSize, maxSize, creator, onReturn, onDestroy);
             pool.Init();
             return pool;
         }
 
-        protected BasePool(int initSize, int maxSize, Func<T> creator, Action<T> onBorrow, Action<T> onReturn, Action<T> onDestroy)
+        protected AsyncPool(int initSize, int maxSize, Action<Action<T>> creator, Action<T> onReturn, Action<T> onDestroy)
         {
             _MaxSize = Mathf.Max(maxSize, initSize);
             _InitSize = initSize;
             _Creator = creator;
-            _OnBorrow = onBorrow ?? _DoNothing;
             _OnReturn = onReturn ?? _DoNothing;
             _OnDestroy = onDestroy ?? _DoNothing;
         }
@@ -49,28 +47,26 @@ namespace IO.Unity3D.Source.Pool
         {
             for (int i = 0; i < _InitSize; i++)
             {
-                var t = _Creator();
-                Return(t);
+                _Creator(Return);
             }
         }
 
-        public T Borrow()
+        public void Borrow(Action<T> onBorrow)
         {
             if (_Destroyed)
             {
                 Debug.LogError("Can not borrow from a destroyed pool");
-                return default(T);
+                onBorrow(default(T));
+                return;
             }
 
             if (_Cache.TryPop(out T t))
             {
-                _OnBorrow(t);
-                return t;
+                onBorrow(t);
+                return;
             }
 
-            t = _Creator();
-            _OnBorrow(t);
-            return t;
+            _Creator(onBorrow);
         }
 
         public void Return(T t)

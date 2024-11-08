@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 
 namespace IO.Unity3D.Source.Pool
 {
@@ -8,9 +9,9 @@ namespace IO.Unity3D.Source.Pool
     // @Email: john.cha@qq.com
     // @Date: 2024-10-15 22:14
     //******************************************
-    public interface IPool<T>
+    public interface ITaskPool<T>
     {
-        T Borrow();
+        Task<T> Borrow();
 
         void Return(T t);
 
